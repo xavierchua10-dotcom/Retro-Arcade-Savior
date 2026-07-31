@@ -373,6 +373,30 @@
   }
   .install-toast.show{ opacity:1; transform:translate(-50%, 0); }
 
+  /* ---------- sound toggle ---------- */
+
+  .sound-btn{
+    position:fixed; top:1rem; left:1rem; z-index:20;
+    display:inline-flex; align-items:center; justify-content:center;
+    width:2.4rem; height:2.4rem;
+    font-size:1rem;
+    color:var(--cyan);
+    background:linear-gradient(90deg, rgba(255,47,216,.14), rgba(35,232,255,.14));
+    border:none; cursor:pointer;
+    clip-path:polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    box-shadow:0 0 0 1px rgba(35,232,255,.55) inset, 0 0 16px rgba(255,47,216,.35);
+    transition:box-shadow .3s ease, background .3s ease, color .2s ease;
+  }
+  .sound-btn:hover, .sound-btn:focus-visible{
+    color:#0a0014;
+    background:linear-gradient(90deg, var(--pink), var(--cyan));
+    box-shadow:0 0 0 1px rgba(255,255,255,.6) inset, 0 0 26px rgba(255,47,216,.7);
+  }
+  .sound-btn:focus-visible{ outline:2px solid var(--cyan); outline-offset:3px; }
+  .sound-btn.is-on{
+    box-shadow:0 0 0 1px rgba(35,232,255,.8) inset, 0 0 22px rgba(35,232,255,.55), 0 0 30px rgba(255,47,216,.35);
+  }
+
   @media (max-width:520px){
     .byline{ letter-spacing:.25em; }
     .install-btn .install-label{ display:none; }
@@ -390,6 +414,10 @@
   <button id="installBtn" class="install-btn" type="button" aria-label="Install this app">
     <span class="bell" aria-hidden="true">🔔</span>
     <span class="install-label">Install App</span>
+  </button>
+
+  <button id="soundBtn" class="sound-btn" type="button" aria-label="Toggle background music" aria-pressed="false">
+    <span class="sound-icon" aria-hidden="true">🔇</span>
   </button>
 
   <div class="bg-stars"></div>
@@ -540,5 +568,213 @@
   })();
   </script>
 
-</body>
+  <script>
+  // Procedurally generated ambient synthwave pad loop — no audio file needed,
+  // so the whole page stays a single self-contained file. Lives only on this
+  // menu page: it never gets included on the individual game pages.
+  var Music = (function(){
+    var ctx, master, comp, delay, feedback, damp;
+    var running = false, muted = true;
+    var chordIndex = 0, chordTimer = null, arpTimer = null, suspendTimer = null;
+    var currentPad = null, bassOsc = null, bassGain = null;
+    var TARGET_VOL = 0.16;
+
+    var CHORDS = [
+      { root: 53, tones: [53, 56, 60] }, // Fm
+      { root: 56, tones: [56, 60, 63] }, // Ab
+      { root: 51, tones: [51, 55, 58] }, // Ebmaj
+      { root: 46, tones: [46, 50, 53] }  // Bb
+    ];
+
+    function noteFreq(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+
+    function ensureContext(){
+      if (ctx) return;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ctx = new AC();
+
+      master = ctx.createGain();
+      master.gain.value = 0;
+
+      comp = ctx.createDynamicsCompressor();
+      delay = ctx.createDelay(1.2);
+      delay.delayTime.value = 0.42;
+      feedback = ctx.createGain();
+      feedback.gain.value = 0.26;
+      damp = ctx.createBiquadFilter();
+      damp.type = 'lowpass';
+      damp.frequency.value = 2200;
+
+      delay.connect(damp);
+      damp.connect(feedback);
+      feedback.connect(delay);
+
+      master.connect(comp);
+      comp.connect(ctx.destination);
+      master.connect(delay);
+      delay.connect(comp);
+    }
+
+    function playPad(chord){
+      var filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 900;
+      filter.Q.value = 0.6;
+
+      var padGain = ctx.createGain();
+      padGain.gain.value = 0;
+      filter.connect(padGain);
+      padGain.connect(master);
+
+      var oscs = [];
+      chord.tones.forEach(function(m){
+        [-4, 4].forEach(function(detune){
+          var osc = ctx.createOscillator();
+          osc.type = 'sawtooth';
+          osc.frequency.value = noteFreq(m) / 2;
+          osc.detune.value = detune;
+          osc.connect(filter);
+          osc.start();
+          oscs.push(osc);
+        });
+      });
+
+      var now = ctx.currentTime;
+      padGain.gain.linearRampToValueAtTime(0.5, now + 2.2);
+      filter.frequency.setValueAtTime(700, now);
+      filter.frequency.linearRampToValueAtTime(1400, now + 4);
+      filter.frequency.linearRampToValueAtTime(700, now + 8);
+
+      return { oscs: oscs, gain: padGain };
+    }
+
+    function stopPad(pad, atTime){
+      pad.gain.gain.cancelScheduledValues(atTime);
+      pad.gain.gain.setValueAtTime(pad.gain.gain.value, atTime);
+      pad.gain.gain.linearRampToValueAtTime(0, atTime + 1.8);
+      pad.oscs.forEach(function(o){ o.stop(atTime + 2); });
+    }
+
+    function playBassFor(chord){
+      var now = ctx.currentTime;
+      if (bassOsc){
+        bassGain.gain.cancelScheduledValues(now);
+        bassGain.gain.setValueAtTime(bassGain.gain.value, now);
+        bassGain.gain.linearRampToValueAtTime(0, now + 0.4);
+        bassOsc.stop(now + 0.5);
+      }
+      bassOsc = ctx.createOscillator();
+      bassOsc.type = 'sine';
+      bassOsc.frequency.value = noteFreq(chord.root - 24);
+      bassGain = ctx.createGain();
+      bassGain.gain.value = 0;
+      bassOsc.connect(bassGain);
+      bassGain.connect(master);
+      bassOsc.start();
+      bassGain.gain.linearRampToValueAtTime(0.32, ctx.currentTime + 1.5);
+    }
+
+    function nextChord(){
+      var chord = CHORDS[chordIndex % CHORDS.length];
+      chordIndex++;
+      var now = ctx.currentTime;
+      var newPad = playPad(chord);
+      if (currentPad) stopPad(currentPad, now);
+      currentPad = newPad;
+      playBassFor(chord);
+      chordTimer = setTimeout(nextChord, 8000);
+    }
+
+    function pluckArp(){
+      if (!running) return;
+      var chord = CHORDS[(chordIndex - 1 + CHORDS.length) % CHORDS.length];
+      var m = chord.tones[Math.floor(Math.random() * chord.tones.length)] + 12;
+      var osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = noteFreq(m);
+      var g = ctx.createGain();
+      g.gain.value = 0;
+      osc.connect(g);
+      g.connect(master);
+      var now = ctx.currentTime;
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.16, now + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+      osc.start(now);
+      osc.stop(now + 1);
+      arpTimer = setTimeout(pluckArp, 550 + Math.random() * 350);
+    }
+
+    function setMuted(m){
+      muted = m;
+      if (!ctx) return;
+      clearTimeout(suspendTimer);
+      var now = ctx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      if (muted){
+        master.gain.linearRampToValueAtTime(0, now + 0.6);
+        suspendTimer = setTimeout(function(){
+          if (muted && ctx.state === 'running') ctx.suspend();
+        }, 650);
+      } else {
+        if (ctx.state === 'suspended') ctx.resume();
+        master.gain.linearRampToValueAtTime(TARGET_VOL, now + 0.8);
+      }
+    }
+
+    function start(){
+      ensureContext();
+      if (!ctx) return false;
+      if (ctx.state === 'suspended') ctx.resume();
+      if (!running){
+        running = true;
+        chordIndex = 0;
+        nextChord();
+        pluckArp();
+      }
+      setMuted(false);
+      return true;
+    }
+
+    function toggle(){
+      if (!running){ return start() ? true : false; }
+      setMuted(!muted);
+      return !muted;
+    }
+
+    function onHidden(){ if (ctx && ctx.state === 'running') ctx.suspend(); }
+    function onVisible(){ if (ctx && running && !muted && ctx.state === 'suspended') ctx.resume(); }
+
+    document.addEventListener('visibilitychange', function(){
+      if (document.hidden) onHidden(); else onVisible();
+    });
+
+    return { start: start, toggle: toggle, isPlaying: function(){ return running && !muted; } };
+  })();
+
+  (function(){
+    var btn = document.getElementById('soundBtn');
+    if (!btn) return;
+    var icon = btn.querySelector('.sound-icon');
+
+    function updateUI(playing){
+      icon.textContent = playing ? '🔊' : '🔇';
+      btn.classList.toggle('is-on', playing);
+      btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    }
+
+    function beginOnFirstGesture(){
+      if (Music.isPlaying()) return;
+      updateUI(Music.start());
+    }
+    window.addEventListener('pointerdown', beginOnFirstGesture, { once: true, passive: true });
+    window.addEventListener('keydown', beginOnFirstGesture, { once: true });
+
+    btn.addEventListener('click', function(){
+      updateUI(Music.toggle());
+    });
+  })();
+  </script>
 </html>
