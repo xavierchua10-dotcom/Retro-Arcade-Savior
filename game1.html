@@ -137,6 +137,26 @@
 
   .hint{ margin-top:.8rem; font-size:.8rem; color:var(--text-muted); }
 
+  .sound-btn{
+    position:absolute; top:.5rem; left:.5rem; z-index:4;
+    width:34px; height:34px; border:none; border-radius:50%;
+    background:rgba(5,1,15,.6); color:var(--cyan); font-size:.85rem;
+    box-shadow:0 0 0 1px rgba(35,232,255,.5) inset;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    touch-action:manipulation;
+  }
+
+  @media (min-width:700px){
+    .wrap{ max-width:640px; }
+    .stage{ max-width:560px; }
+    h1.game-title{ font-size:1.7rem; }
+    .hint{ font-size:.9rem; }
+  }
+  @media (min-width:1100px){
+    .wrap{ max-width:760px; }
+    .stage{ max-width:660px; }
+  }
+
   @media (prefers-reduced-motion: reduce){
     .bg-stars{ animation:none; opacity:.8; }
   }
@@ -163,6 +183,7 @@
     <div class="stage" id="stage">
       <canvas id="game"></canvas>
       <div class="toast" id="toast"></div>
+      <button class="sound-btn" id="soundBtn" aria-label="Toggle sound">🔊</button>
       <button class="pause-btn" id="pauseBtn" aria-label="Pause">❚❚</button>
       <div class="overlay show" id="overlay">
         <div class="overlay-inner">
@@ -186,6 +207,7 @@
   var overlayText = document.getElementById('overlayText');
   var overlayBtn = document.getElementById('overlayBtn');
   var pauseBtn = document.getElementById('pauseBtn');
+  var soundBtn = document.getElementById('soundBtn');
   var toastEl = document.getElementById('toast');
   var scoreEl = document.getElementById('score');
   var levelEl = document.getElementById('level');
@@ -206,6 +228,9 @@
   var rafId = null, lastTime = 0;
   var toastTimer = null;
   var resizeTimer = null;
+  var DESIGN_WIDTH = 380;
+  var audioCtx = null;
+  var soundOn = localStorage.getItem('savior_neonbreaker_sound') !== 'off';
 
   function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
 
@@ -219,6 +244,35 @@
     c.closePath();
   }
 
+  function ensureAudio(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ audioCtx = null; }
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){ audioCtx.resume(); }
+  }
+  function tone(freq, dur, type, peak, delay){
+    if(!soundOn || !audioCtx) return;
+    var t0 = audioCtx.currentTime + (delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(peak || 0.12, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  }
+  function sfxWall(){ tone(180, 0.06, 'square', 0.08); }
+  function sfxPaddle(){ tone(320, 0.07, 'square', 0.1); }
+  function sfxBrick(row){ tone(440 + (currentRows-1-row)*60, 0.09, 'square', 0.12); }
+  function sfxLaunch(){ tone(600, 0.08, 'triangle', 0.1); }
+  function sfxLifeLost(){ tone(220, 0.18, 'sawtooth', 0.14); tone(140, 0.22, 'sawtooth', 0.12, 0.1); }
+  function sfxLevelUp(){ tone(523, 0.09, 'square', 0.12, 0); tone(659, 0.09, 'square', 0.12, 0.09); tone(784, 0.14, 'square', 0.14, 0.18); }
+  function sfxGameOver(){ tone(300, 0.18, 'sawtooth', 0.14, 0); tone(220, 0.2, 'sawtooth', 0.13, 0.15); tone(140, 0.3, 'sawtooth', 0.12, 0.32); }
+
   function resize(){
     var rect = canvas.getBoundingClientRect();
     W = rect.width; H = rect.height;
@@ -229,9 +283,12 @@
     bgGradient = ctx.createLinearGradient(0,0,0,H);
     bgGradient.addColorStop(0,'#160b32');
     bgGradient.addColorStop(1,'#05010f');
+    var scale = W / DESIGN_WIDTH;
     paddle.w = Math.max(70, W/5.2);
     paddle.y = H - 30;
     paddle.x = clamp(paddle.x, 0, W - paddle.w);
+    paddle.speed = 560 * scale;
+    ball.speedBase = 230 * scale;
     layoutBricks();
   }
 
@@ -268,11 +325,13 @@
   }
 
   function launchBall(){
+    ensureAudio();
     var speed = ball.speedBase * Math.pow(1.07, level-1);
     var angle = -Math.PI/2 + (Math.random()*0.6 - 0.3);
     ball.vx = speed*Math.cos(angle);
     ball.vy = speed*Math.sin(angle);
     state = 'playing';
+    sfxLaunch();
     hideOverlay();
   }
 
@@ -312,6 +371,7 @@
   function loseLife(){
     lives--;
     updateLivesUI();
+    sfxLifeLost();
     if(lives<=0){
       gameOver();
     } else {
@@ -327,12 +387,14 @@
     buildBricks();
     state = 'ready';
     resetBallOnPaddle();
+    sfxLevelUp();
     showToast('LEVEL ' + level, 'TAP TO LAUNCH');
   }
 
   function gameOver(){
     state = 'gameover';
     stopLoop();
+    sfxGameOver();
     if(score > best){
       best = score;
       localStorage.setItem('savior_neonbreaker_best', String(best));
@@ -345,6 +407,7 @@
   }
 
   function startGame(){
+    ensureAudio();
     score = 0; level = 1; lives = 3;
     updateScoreUI(); updateLevelUI(); updateLivesUI();
     buildBricks();
@@ -376,9 +439,9 @@
     ball.x += ball.vx*dt;
     ball.y += ball.vy*dt;
 
-    if(ball.x - ball.r < 0){ ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
-    if(ball.x + ball.r > W){ ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); }
-    if(ball.y - ball.r < 0){ ball.y = ball.r; ball.vy = Math.abs(ball.vy); }
+    if(ball.x - ball.r < 0){ ball.x = ball.r; ball.vx = Math.abs(ball.vx); sfxWall(); }
+    if(ball.x + ball.r > W){ ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); sfxWall(); }
+    if(ball.y - ball.r < 0){ ball.y = ball.r; ball.vy = Math.abs(ball.vy); sfxWall(); }
 
     if(ball.vy > 0 &&
        ball.y + ball.r >= paddle.y &&
@@ -391,6 +454,7 @@
       ball.vx = speed*Math.sin(angle);
       ball.vy = -Math.abs(speed*Math.cos(angle));
       ball.y = paddle.y - ball.r - 0.5;
+      sfxPaddle();
     }
 
     for(var i=0;i<bricks.length;i++){
@@ -402,6 +466,7 @@
         score += b.points;
         updateScoreUI();
         spawnParticles(b.x + b.w/2, b.y + b.h/2, b.color);
+        sfxBrick(Math.floor(i/7));
         var overlapLeft = (ball.x + ball.r) - b.x;
         var overlapRight = (b.x + b.w) - (ball.x - ball.r);
         var overlapTop = (ball.y + ball.r) - b.y;
@@ -519,20 +584,44 @@
     else if(state === 'paused'){ togglePause(); }
   });
   pauseBtn.addEventListener('click', togglePause);
+  soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  soundBtn.addEventListener('click', function(){
+    ensureAudio();
+    soundOn = !soundOn;
+    localStorage.setItem('savior_neonbreaker_sound', soundOn ? 'on' : 'off');
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  });
 
+  stage.addEventListener('pointerenter', function(e){
+    dragRect = canvas.getBoundingClientRect();
+    if(e.pointerType === 'mouse'){
+      pointerActive = true;
+      pointerX = e.clientX - dragRect.left;
+    }
+  });
   stage.addEventListener('pointerdown', function(e){
+    ensureAudio();
     dragRect = canvas.getBoundingClientRect();
     pointerActive = true;
     pointerX = e.clientX - dragRect.left;
     if(state === 'ready'){ launchBall(); }
-    if(stage.setPointerCapture){ try{ stage.setPointerCapture(e.pointerId); }catch(err){} }
+    if(e.pointerType !== 'mouse' && stage.setPointerCapture){
+      try{ stage.setPointerCapture(e.pointerId); }catch(err){}
+    }
   });
   stage.addEventListener('pointermove', function(e){
     if(!pointerActive) return;
     pointerX = e.clientX - (dragRect ? dragRect.left : 0);
   });
-  stage.addEventListener('pointerup', function(){ pointerActive = false; });
-  stage.addEventListener('pointercancel', function(){ pointerActive = false; });
+  stage.addEventListener('pointerup', function(e){
+    if(e.pointerType !== 'mouse'){ pointerActive = false; }
+  });
+  stage.addEventListener('pointercancel', function(e){
+    if(e.pointerType !== 'mouse'){ pointerActive = false; }
+  });
+  stage.addEventListener('pointerleave', function(e){
+    if(e.pointerType === 'mouse'){ pointerActive = false; pointerX = null; }
+  });
 
   window.addEventListener('keydown', function(e){
     if(e.code === 'ArrowLeft' || e.code === 'KeyA'){ keys.left = true; }

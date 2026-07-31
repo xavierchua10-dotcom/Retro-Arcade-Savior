@@ -39,7 +39,8 @@
 
   body{
     margin:0;
-    min-height:100vh;
+    height:100vh;
+    height:100dvh;
     background:var(--void);
     color:var(--text-main);
     font-family:'Rajdhani', sans-serif;
@@ -73,10 +74,12 @@
   .topbar{
     position:relative; z-index:5;
     display:flex; align-items:center; justify-content:space-between;
-    padding:.7rem .9rem;
+    padding:.6rem .9rem;
+    padding-top:calc(.6rem + env(safe-area-inset-top));
     gap:.6rem;
     flex-shrink:0;
   }
+  .topbar-left{ display:flex; align-items:center; gap:.4rem; }
   .icon-btn{
     display:inline-flex; align-items:center; justify-content:center;
     width:2.5rem; height:2.5rem;
@@ -230,7 +233,8 @@
     position:relative; z-index:5;
     display:flex; align-items:center; justify-content:space-between;
     gap:.8rem;
-    padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
+    max-width:480px; width:100%; margin:0 auto;
+    padding:.6rem 1rem calc(.6rem + env(safe-area-inset-bottom));
     flex-shrink:0;
   }
   .dpad{ display:flex; gap:.6rem; }
@@ -264,6 +268,7 @@
   .fire-btn.active{ transform:scale(.92); box-shadow:0 0 0 1px #fff inset, 0 0 32px rgba(255,47,216,.9); }
 
   .hint{
+    display:none;
     text-align:center;
     font-family:'Orbitron', sans-serif;
     font-size:.6rem;
@@ -293,9 +298,12 @@
   <div class="vignette"></div>
 
   <div class="topbar">
-    <a class="back-link" href="index.html" aria-label="Back to arcade">
-      <button class="icon-btn" type="button">⟵</button>
-    </a>
+    <div class="topbar-left">
+      <a class="back-link" href="index.html" aria-label="Back to arcade">
+        <button class="icon-btn" type="button">⟵</button>
+      </a>
+      <button class="icon-btn" id="pauseBtn" type="button" aria-label="Pause">❚❚</button>
+    </div>
     <div class="brand-title">GAME 05<br>INVADER&nbsp;SIEGE</div>
     <div class="topbar-right">
       <div class="hiscore"><span>BEST</span><b id="hiscoreVal">0</b></div>
@@ -356,7 +364,6 @@
       <button class="ctrl-btn" id="leftBtn" type="button" aria-label="Move left">◀</button>
       <button class="ctrl-btn" id="rightBtn" type="button" aria-label="Move right">▶</button>
     </div>
-    <button class="ctrl-btn" id="pauseBtn" type="button" aria-label="Pause">❚❚</button>
     <button class="fire-btn" id="fireBtn" type="button" aria-label="Fire">FIRE</button>
   </div>
 
@@ -572,10 +579,31 @@
 
   function bindHold(el, onDown, onUp){
     if (!el) return;
-    el.addEventListener('pointerdown', function(e){ e.preventDefault(); onDown(); }, { passive:false });
-    ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
-      el.addEventListener(ev, function(){ onUp(); });
-    });
+    var activeId = null;
+
+    function down(e){
+      e.preventDefault();
+      if (activeId !== null) return;
+      activeId = e.pointerId;
+      try { el.setPointerCapture(activeId); } catch(err){}
+      onDown();
+    }
+    function up(e){
+      if (activeId === null) return;
+      if (e && e.pointerId !== undefined && e.pointerId !== activeId) return;
+      var id = activeId;
+      activeId = null;
+      try { el.releasePointerCapture(id); } catch(err){}
+      onUp();
+    }
+
+    el.addEventListener('pointerdown', down, { passive:false });
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    // Belt-and-suspenders: if the browser ever fails to deliver pointerup/cancel
+    // to this element (e.g. mid-press layout shift), catch it at the window level.
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   }
 
   var leftBtn = document.getElementById('leftBtn');
@@ -585,6 +613,16 @@
   bindHold(leftBtn, function(){ moveLeft = true; setActive(leftBtn, true); }, function(){ moveLeft = false; setActive(leftBtn, false); });
   bindHold(rightBtn, function(){ moveRight = true; setActive(rightBtn, true); }, function(){ moveRight = false; setActive(rightBtn, false); });
   bindHold(fireBtn, function(){ wantFire = true; setActive(fireBtn, true); }, function(){ wantFire = false; setActive(fireBtn, false); });
+
+  function resetInputs(){
+    moveLeft = false; moveRight = false; wantFire = false;
+    setActive(leftBtn, false); setActive(rightBtn, false); setActive(fireBtn, false);
+  }
+  // Extra safety net: any time the page loses focus, becomes hidden, or the
+  // window itself reports a stray pointer release, drop all held inputs so a
+  // button can never stay "stuck" active.
+  window.addEventListener('blur', resetInputs);
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) resetInputs(); });
 
   /* ================= GAMEPLAY ================= */
   function spawnPlayerBullet(){
@@ -830,6 +868,7 @@
 
   function startGame(){
     Audio.resume();
+    resetInputs();
     resize();
     resetGame();
     state = STATE.PLAYING;
@@ -840,10 +879,12 @@
   function togglePause(){
     if (state === STATE.PLAYING){
       state = STATE.PAUSED;
+      resetInputs();
       showOverlay(pauseOverlay);
       Audio.ui();
     } else if (state === STATE.PAUSED){
       state = STATE.PLAYING;
+      resetInputs();
       hideOverlays();
       last = 0;
       Audio.ui();
@@ -852,6 +893,7 @@
 
   function endGame(won){
     state = STATE.OVER;
+    resetInputs();
     highScore = Math.max(highScore, score);
     document.getElementById('finalScore').textContent = score;
     document.getElementById('finalWave').textContent = wave;
