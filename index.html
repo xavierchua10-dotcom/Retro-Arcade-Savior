@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Retro Arcade 20 — by Savior</title>
 <meta name="description" content="Retro Arcade 20 — a synthwave arcade cabinet with 20 games to play.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,9 +23,9 @@
     --card-border:rgba(168,85,247,0.35);
   }
 
-  *{box-sizing:border-box;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 
-  html{scroll-behavior:smooth;}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
 
   body{
     margin:0;
@@ -35,11 +35,22 @@
     font-family:'Rajdhani',sans-serif;
     overflow-x:hidden;
     position:relative;
+    -webkit-tap-highlight-color:transparent;
   }
 
   ::selection{background:var(--pink);color:var(--void);}
 
-  a{color:inherit;text-decoration:none;}
+  a{color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent;}
+
+  a, button, .card{
+    touch-action:manipulation;
+  }
+
+  .play-btn, .badge, .card-num, .eyebrow{
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    user-select:none;
+  }
 
   :focus-visible{
     outline:2px solid var(--cyan);
@@ -142,14 +153,15 @@
   .wrap{
     max-width:1280px;
     margin:0 auto;
-    padding:0 24px 80px;
+    padding:0 max(16px, env(safe-area-inset-left)) 80px max(16px, env(safe-area-inset-right));
     position:relative;
     z-index:1;
   }
 
   header.hero{
     text-align:center;
-    padding:min(14vh,120px) 20px 40px;
+    padding:min(10vh,90px) 16px 32px;
+    padding-top:max(min(10vh,90px), env(safe-area-inset-top));
     position:relative;
   }
 
@@ -279,10 +291,24 @@
     to{opacity:1;transform:translateY(0);}
   }
 
-  .card:hover, .card:focus-within{
+  .card:focus-within{
     transform:translateY(-8px);
     border-color:var(--cyan);
     box-shadow:0 18px 40px rgba(0,0,0,0.45), 0 0 30px rgba(0,240,255,0.25), inset 0 0 20px rgba(168,85,247,0.12);
+  }
+
+  .card:active{
+    transform:translateY(-2px) scale(0.99);
+    border-color:var(--cyan);
+    box-shadow:0 10px 26px rgba(0,0,0,0.45), 0 0 22px rgba(0,240,255,0.2);
+  }
+
+  @media (hover:hover) and (pointer:fine){
+    .card:hover{
+      transform:translateY(-8px);
+      border-color:var(--cyan);
+      box-shadow:0 18px 40px rgba(0,0,0,0.45), 0 0 30px rgba(0,240,255,0.25), inset 0 0 20px rgba(168,85,247,0.12);
+    }
   }
 
   .card-num{
@@ -309,9 +335,16 @@
     box-shadow:0 0 24px rgba(168,85,247,0.45), inset 0 0 14px rgba(0,240,255,0.15);
     transition:box-shadow 0.35s ease, transform 0.35s ease;
   }
-  .card:hover .badge{
-    transform:scale(1.08);
-    box-shadow:0 0 34px rgba(255,46,151,0.6), inset 0 0 16px rgba(0,240,255,0.25);
+  .card:active .badge{
+    transform:scale(1.05);
+    box-shadow:0 0 30px rgba(255,46,151,0.55), inset 0 0 16px rgba(0,240,255,0.2);
+  }
+
+  @media (hover:hover) and (pointer:fine){
+    .card:hover .badge{
+      transform:scale(1.08);
+      box-shadow:0 0 34px rgba(255,46,151,0.6), inset 0 0 16px rgba(0,240,255,0.25);
+    }
   }
 
   h2.game-title{
@@ -337,13 +370,15 @@
     font-family:'Press Start 2P',monospace;
     font-size:0.62rem;
     letter-spacing:0.12em;
-    padding:12px 26px;
+    padding:14px 28px;
+    min-height:44px;
     border-radius:999px;
     border:1px solid var(--cyan);
     color:var(--cyan);
     background:transparent;
     display:inline-flex;
     align-items:center;
+    justify-content:center;
     gap:8px;
     transition:all 0.3s ease;
     box-shadow:0 0 0 rgba(0,240,255,0);
@@ -354,12 +389,22 @@
     font-size:0.55rem;
   }
 
-  .play-btn:hover, .play-btn:focus-visible{
+  .play-btn:active, .play-btn:focus-visible{
     background:linear-gradient(90deg, var(--purple), var(--pink));
     color:#fff;
     border-color:transparent;
     box-shadow:0 0 24px rgba(255,46,151,0.65), 0 0 12px rgba(0,240,255,0.4);
-    transform:translateY(-2px);
+    transform:translateY(-1px) scale(0.98);
+  }
+
+  @media (hover:hover) and (pointer:fine){
+    .play-btn:hover{
+      background:linear-gradient(90deg, var(--purple), var(--pink));
+      color:#fff;
+      border-color:transparent;
+      box-shadow:0 0 24px rgba(255,46,151,0.65), 0 0 12px rgba(0,240,255,0.4);
+      transform:translateY(-2px);
+    }
   }
 
   footer{
@@ -371,9 +416,28 @@
     text-transform:uppercase;
   }
 
+  @media (max-width:600px){
+    .arcade-grid{grid-template-columns:repeat(auto-fill, minmax(160px,1fr));gap:14px;}
+    .card{padding:20px 16px 18px;}
+    .badge{width:60px;height:60px;font-size:1.7rem;margin-bottom:12px;}
+    h2.game-title{font-size:1.1rem;}
+    p.desc{font-size:0.88rem;min-height:0;margin-bottom:18px;}
+    .play-btn{padding:12px 20px;font-size:0.56rem;}
+    .eyebrow{letter-spacing:0.25em;font-size:0.5rem;}
+  }
+
   @media (max-width:480px){
-    p.credit{letter-spacing:0.3em;}
-    .arcade-grid{grid-template-columns:repeat(auto-fill, minmax(200px,1fr));gap:18px;}
+    p.credit{letter-spacing:0.28em;font-size:0.85rem;}
+    p.tagline{font-size:0.95rem;}
+  }
+
+  @media (max-width:360px){
+    .arcade-grid{grid-template-columns:repeat(auto-fill, minmax(140px,1fr));gap:10px;}
+    h1.title{letter-spacing:0.02em;}
+  }
+
+  footer{
+    padding-bottom:env(safe-area-inset-bottom);
   }
 
   @media (prefers-reduced-motion: reduce){
