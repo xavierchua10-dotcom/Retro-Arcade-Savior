@@ -78,6 +78,7 @@
     overflow-x:hidden;
     position:relative;
   }
+  body.intro-lock{ overflow:hidden; }
 
   /* ---------- background layers (fixed, transform/opacity only) ---------- */
 
@@ -397,6 +398,72 @@
     box-shadow:0 0 0 1px rgba(35,232,255,.8) inset, 0 0 22px rgba(35,232,255,.55), 0 0 30px rgba(255,47,216,.35);
   }
 
+  /* ---------- intro screen ---------- */
+
+  .intro-screen{
+    position:fixed; inset:0; z-index:100;
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(24,5,54,.94) 0%, rgba(5,1,15,.99) 78%);
+    cursor:pointer;
+    opacity:1;
+    transition:opacity .9s ease;
+  }
+  .intro-screen.is-hidden{
+    opacity:0;
+    pointer-events:none;
+  }
+  .intro-screen:focus-visible{ outline:2px solid var(--cyan); outline-offset:-6px; }
+  .intro-inner{ text-align:center; padding:2rem; }
+
+  .intro-eyebrow{
+    font-family:'Orbitron', sans-serif;
+    font-size:clamp(.6rem,1.6vw,.8rem);
+    letter-spacing:.5em;
+    text-transform:uppercase;
+    color:var(--cyan);
+    margin:0 0 1.2rem;
+    opacity:.85;
+  }
+
+  .intro-title{
+    font-family:'Press Start 2P', monospace;
+    font-size:clamp(1.1rem,4.6vw,2.2rem);
+    line-height:1.5;
+    margin:0;
+    letter-spacing:.03em;
+    color:var(--text-main);
+    text-shadow:
+      0 0 6px rgba(255,255,255,.6),
+      0 0 18px var(--pink),
+      0 0 42px var(--purple);
+  }
+  .intro-title .five{
+    background:linear-gradient(120deg, var(--cyan), var(--pink));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    filter:drop-shadow(0 0 18px rgba(35,232,255,.7));
+  }
+
+  .intro-byline{
+    margin:.9rem 0 2.6rem;
+    font-family:'Orbitron', sans-serif;
+    font-size:clamp(.6rem,1.4vw,.75rem);
+    letter-spacing:.35em;
+    text-transform:uppercase;
+    color:var(--lavender);
+  }
+  .intro-byline span{ color:var(--cyan); opacity:.7; margin:0 .5em; }
+
+  .intro-prompt{
+    font-family:'Press Start 2P', monospace;
+    font-size:clamp(.7rem,2.2vw,.95rem);
+    letter-spacing:.15em;
+    color:var(--cyan);
+    text-shadow:0 0 12px rgba(35,232,255,.7);
+    animation:blink 1.2s steps(1) infinite;
+  }
+
   @media (max-width:520px){
     .byline{ letter-spacing:.25em; }
     .install-btn .install-label{ display:none; }
@@ -411,13 +478,22 @@
 </head>
 <body>
 
+  <div id="introScreen" class="intro-screen" tabindex="0" role="button" aria-label="Tap to enter Retro Arcade 5">
+    <div class="intro-inner">
+      <p class="intro-eyebrow">Insert Coin</p>
+      <h2 class="intro-title">RETRO ARCADE <span class="five">5</span></h2>
+      <p class="intro-byline"><span>—</span>by Savior<span>—</span></p>
+      <p class="intro-prompt">TAP TO ENTER</p>
+    </div>
+  </div>
+
   <button id="installBtn" class="install-btn" type="button" aria-label="Install this app">
     <span class="bell" aria-hidden="true">🔔</span>
     <span class="install-label">Install App</span>
   </button>
 
-  <button id="soundBtn" class="sound-btn" type="button" aria-label="Toggle background music" aria-pressed="false">
-    <span class="sound-icon" aria-hidden="true">🔇</span>
+  <button id="soundBtn" class="sound-btn is-on" type="button" aria-label="Toggle background music" aria-pressed="true">
+    <span class="sound-icon" aria-hidden="true">🔊</span>
   </button>
 
   <div class="bg-stars"></div>
@@ -574,7 +650,7 @@
   // menu page: it never gets included on the individual game pages.
   var Music = (function(){
     var ctx, master, comp, delay, feedback, damp;
-    var running = false, muted = true;
+    var running = false, muted = false;
     var chordIndex = 0, chordTimer = null, arpTimer = null, suspendTimer = null;
     var currentPad = null, bassOsc = null, bassGain = null;
     var TARGET_VOL = 0.16;
@@ -755,26 +831,45 @@
   })();
 
   (function(){
-    var btn = document.getElementById('soundBtn');
-    if (!btn) return;
-    var icon = btn.querySelector('.sound-icon');
+    var soundBtn = document.getElementById('soundBtn');
+    var introScreen = document.getElementById('introScreen');
 
-    function updateUI(playing){
+    function updateSoundUI(playing){
+      if (!soundBtn) return;
+      var icon = soundBtn.querySelector('.sound-icon');
       icon.textContent = playing ? '🔊' : '🔇';
-      btn.classList.toggle('is-on', playing);
-      btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      soundBtn.classList.toggle('is-on', playing);
+      soundBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
     }
 
-    function beginOnFirstGesture(){
-      if (Music.isPlaying()) return;
-      updateUI(Music.start());
+    function enterArcade(){
+      if (!introScreen || introScreen.classList.contains('is-hidden')) return;
+      updateSoundUI(Music.start());
+      introScreen.classList.add('is-hidden');
+      introScreen.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('intro-lock');
+      setTimeout(function(){ if (introScreen.parentNode) introScreen.remove(); }, 950);
     }
-    window.addEventListener('pointerdown', beginOnFirstGesture, { once: true, passive: true });
-    window.addEventListener('keydown', beginOnFirstGesture, { once: true });
 
-    btn.addEventListener('click', function(){
-      updateUI(Music.toggle());
-    });
+    if (introScreen){
+      document.body.classList.add('intro-lock');
+      introScreen.addEventListener('click', enterArcade);
+      introScreen.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+          e.preventDefault();
+          enterArcade();
+        }
+      });
+      introScreen.focus();
+    }
+
+    if (soundBtn){
+      soundBtn.addEventListener('click', function(){
+        updateSoundUI(Music.toggle());
+      });
+    }
   })();
   </script>
+
+</body>
 </html>
