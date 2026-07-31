@@ -12,7 +12,7 @@
 <title>Retro Arcade 5 — by Savior</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=optional" rel="stylesheet">
 <link rel="manifest" id="manifestLink" href="">
 <script>
   (function(){
@@ -67,11 +67,12 @@
     user-select: none;
   }
 
-  html{ scroll-behavior:smooth; -webkit-tap-highlight-color: transparent; }
+  html{ scroll-behavior:smooth; -webkit-tap-highlight-color: transparent; scrollbar-gutter: stable; }
 
   body{
     margin:0;
     min-height:100vh;
+    min-height:100dvh;
     background:var(--void);
     color:var(--text-main);
     font-family:'Rajdhani', sans-serif;
@@ -99,7 +100,7 @@
   @keyframes twinkle{ from{ opacity:.55; } to{ opacity:1; } }
 
   .sun{
-    position:fixed; left:50%; bottom:24vh; z-index:-3;
+    position:fixed; left:50%; bottom:24vh; bottom:24dvh; z-index:-3;
     width:min(48vw,520px); height:min(48vw,520px);
     transform:translateX(-50%);
     border-radius:50%;
@@ -116,7 +117,7 @@
   }
 
   .grid-floor{
-    position:fixed; left:0; right:0; bottom:0; height:58vh; z-index:-2;
+    position:fixed; left:0; right:0; bottom:0; height:58vh; height:58dvh; z-index:-2;
     overflow:hidden; perspective:300px;
     -webkit-mask-image:linear-gradient(to top, black 40%, transparent 95%);
             mask-image:linear-gradient(to top, black 40%, transparent 95%);
@@ -246,6 +247,30 @@
     height:100%;
     padding:1.9rem 1.6rem 1.6rem;
     display:flex; flex-direction:column; align-items:flex-start; gap:.7rem;
+  }
+
+  /* Per-card themed background art — layered beneath the same translucent
+     panel gradient above (already ~92% opaque), so it stays a faint,
+     on-brand glow behind the content rather than competing with the text. */
+  .game-card--fighter .game-card__inner{
+    background-image:linear-gradient(165deg, var(--panel-a), var(--panel-b)), url('card-bg-fighter.jpg');
+    background-size:cover; background-position:center;
+  }
+  .game-card--turbo .game-card__inner{
+    background-image:linear-gradient(165deg, var(--panel-a), var(--panel-b)), url('card-bg-turbo.jpg');
+    background-size:cover; background-position:center;
+  }
+  .game-card--grid .game-card__inner{
+    background-image:linear-gradient(165deg, var(--panel-a), var(--panel-b)), url('card-bg-grid.jpg');
+    background-size:cover; background-position:center;
+  }
+  .game-card--space .game-card__inner{
+    background-image:linear-gradient(165deg, var(--panel-a), var(--panel-b)), url('card-bg-space.jpg');
+    background-size:cover; background-position:center;
+  }
+  .game-card--invader .game-card__inner{
+    background-image:linear-gradient(165deg, var(--panel-a), var(--panel-b)), url('card-bg-invader.jpg');
+    background-size:cover; background-position:center;
   }
 
   .emoji-badge{
@@ -508,7 +533,8 @@
     opacity:0;
     pointer-events:none;
   }
-  .intro-screen:focus-visible{ outline:2px solid var(--cyan); outline-offset:-6px; }
+  .intro-screen:focus-visible{ outline:none; }
+  .intro-screen{ outline:none; }
   .intro-inner{ text-align:center; padding:2rem; }
 
   .intro-eyebrow{
@@ -630,7 +656,7 @@
 
     <main class="cabinet-grid">
 
-      <article class="game-card">
+      <article class="game-card game-card--fighter">
         <div class="game-card__inner">
           <div class="emoji-badge">🕹️</div>
           <h2>Game 01</h2>
@@ -639,7 +665,7 @@
         </div>
       </article>
 
-      <article class="game-card">
+      <article class="game-card game-card--turbo">
         <div class="game-card__inner">
           <div class="emoji-badge">🚗</div>
           <h2>Game 02</h2>
@@ -648,7 +674,7 @@
         </div>
       </article>
 
-      <article class="game-card">
+      <article class="game-card game-card--grid">
         <div class="game-card__inner">
           <div class="emoji-badge">🐍</div>
           <h2>Game 03</h2>
@@ -657,7 +683,7 @@
         </div>
       </article>
 
-      <article class="game-card">
+      <article class="game-card game-card--space">
         <div class="game-card__inner">
           <div class="emoji-badge">🚀</div>
           <h2>Game 04</h2>
@@ -666,7 +692,7 @@
         </div>
       </article>
 
-      <article class="game-card">
+      <article class="game-card game-card--invader">
         <div class="game-card__inner">
           <div class="emoji-badge">👾</div>
           <h2>Game 05</h2>
